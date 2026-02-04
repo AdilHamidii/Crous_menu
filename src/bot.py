@@ -1,69 +1,78 @@
 import os
 import requests
+from bs4 import BeautifulSoup
 from datetime import datetime
+import warnings
+import re
 
+warnings.filterwarnings("ignore")
 
-RESTO_ID = "606" 
 WA_PHONE_ID = os.getenv("WA_PHONE_ID")
 WA_TOKEN = os.getenv("WA_TOKEN")
 RECIPIENT_PHONE = os.getenv("RECIPIENT_PHONE")
 
 
-def get_crous_menu():
-    url = f"https://api.croustillant.menu/v1/restaurants/{RESTO_ID}/menu"
-    
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    }
-    
+
+def get_menu_final():
+    url = "https://www.crous-bfc.fr/restaurant/resto-u-montmuzard/"
+    headers = {"User-Agent": "Mozilla/5.0"}
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.get(url, headers=headers, timeout=15)
         response.raise_for_status()
+        soup = BeautifulSoup(response.text, 'html.parser')
+        page_text = soup.get_text(separator="\n", strip=True)
         
-        data = response.json()
-        today_str = datetime.now().strftime("%Y-%m-%d")
+        day_pattern = r"mercredi 4 février"
+        next_day_pattern = r"jeudi 5 février"
+        regex = rf"{day_pattern}.*?(?={next_day_pattern}|$)"
+        match = re.search(regex, page_text, re.DOTALL | re.IGNORECASE)
         
-        daily_menu = next((m for m in data if m['date'] == today_str), None)
+        if not match:
+            return "⚠️ Menu d'aujourd'hui introuvable."
+        day_content = match.group(0)
         
-        if not daily_menu:
-            return "⚠️ Pas de menu communiqué pour aujourd'hui."
+        current_hour = datetime.now().hour
+        parts = re.split(r"(Dîner)", day_content, flags=re.IGNORECASE)
+        dejeuner_text = parts[0]
+        diner_text = parts[1] + parts[2] if len(parts) > 2 else ""
+        if current_hour < 14:
+            target_text = dejeuner_text
+            header = "🌞 *DÉJEUNER - MONTMUZARD*"
+        else:
+            target_text = diner_text
+            header = "🌙 *DÎNER - MONTMUZARD*"
 
-        header = f"🍽️ *MENU DU JOUR - {daily_menu.get('restaurant_name', 'Crous')}*"
-        sections = []
+        raw_lines = target_text.split('\n')
+        formatted_menu = [f"🍽️ {header} - {datetime.now().strftime('%d/%m')}"]
         
-        for meal in daily_menu.get('meals', []):
-            meal_type = meal.get('name', 'Menu')
-            items = "\n".join([f"• {item['name']}" for item in meal.get('food_items', [])])
-            sections.append(f"*{meal_type}*\n{items}")
+        for line in raw_lines:
+            l = line.strip()
+            if not l or len(l) < 3 or "Menu du" in l or "mercredi 4" in l.lower(): continue
+            
+            if "Déjeuner" in l or "Dîner" in l: continue
+            elif "Plats" in l or "étage" in l: formatted_menu.append(f"\n📍 _{l}_")
+            elif "garnitures" in l.lower(): formatted_menu.append("🥗 _Garnitures :_")
+            elif "MENU CONSEIL" in l: continue
+            else:
+                formatted_menu.append(f"• {l}")
 
-        return f"{header}\n\n" + "\n\n".join(sections)
+        return "\n".join(formatted_menu)
 
-    except requests.exceptions.HTTPError as e:
-        return f"❌ Erreur API ({e.response.status_code})"
     except Exception as e:
-        return f"❌ Erreur: {e}"
+        return f"❌ Erreur : {str(e)}"
 
-
-def send_whatsapp_alert(message):
+def send_whatsapp(message):
     url = f"https://graph.facebook.com/v18.0/{WA_PHONE_ID}/messages"
-    
-    headers = {
-        "Authorization": f"Bearer {WA_TOKEN}",
-        "Content-Type": "application/json"
-    }
-    
+    headers = {"Authorization": f"Bearer {WA_TOKEN}", "Content-Type": "application/json"}
     payload = {
         "messaging_product": "whatsapp",
         "to": RECIPIENT_PHONE,
         "type": "text",
         "text": {"body": message}
     }
-    
-    response = requests.post(url, headers=headers, json=payload)
-    return response.json()
-
+    return requests.post(url, headers=headers, json=payload).json()
 
 if __name__ == "__main__":
-    menu = get_crous_menu()
-    status = send_whatsapp_alert(menu)
-    print(status)
+    content = get_menu_final()
+    print(f"Envoi du menu :\n{content}")
+    print(send_whatsapp(content))
