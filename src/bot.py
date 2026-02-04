@@ -7,14 +7,19 @@ WA_PHONE_ID = os.getenv("WA_PHONE_ID")
 WA_TOKEN = os.getenv("WA_TOKEN")
 RECIPIENT_PHONE = os.getenv("RECIPIENT_PHONE")
 
-
+headers = {
+    "User-Agent": "Mozilla/5.0",
+    "Accept": "application/json",
+    "Origin": "https://croustillant.menu",
+    "Referer": "https://croustillant.menu/"
+}
 
 
 
 def get_crous_menu():
     url = f"https://api.croustillant.menu/v1/restaurants/{RESTO_ID}/menu"
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
         data = response.json()
         today_str = datetime.now().strftime("%Y-%m-%d")
