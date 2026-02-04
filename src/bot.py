@@ -11,7 +11,8 @@ WA_PHONE_ID = os.getenv("WA_PHONE_ID")
 WA_TOKEN = os.getenv("WA_TOKEN")
 RECIPIENT_PHONE = os.getenv("RECIPIENT_PHONE")
 
-
+if not all([WA_PHONE_ID, WA_TOKEN, RECIPIENT_PHONE]):
+    raise ValueError(" Erreur : Variables d'environnement manquantes !")
 
 def get_menu_final():
     url = "https://www.crous-bfc.fr/restaurant/resto-u-montmuzard/"
