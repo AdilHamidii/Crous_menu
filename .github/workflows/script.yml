@@ -2,10 +2,9 @@ name: Daily Crous Menu
 
 on:
   schedule:
-  
-    - cron: '0 9 * * *'  
-    - cron: '0 16 * * *' 
-  workflow_dispatch:      
+    - cron: '0 9 * * *'
+    - cron: '0 16 * * *'
+  workflow_dispatch:
 
 jobs:
   send_menu:
@@ -23,4 +22,8 @@ jobs:
         run: pip install requests beautifulsoup4
         
       - name: Run bot
+        env:
+          WA_PHONE_ID: ${{ secrets.WA_PHONE_ID }}
+          WA_TOKEN: ${{ secrets.WA_TOKEN }}
+          RECIPIENT_PHONE: ${{ secrets.RECIPIENT_PHONE }}
         run: python src/bot.py
